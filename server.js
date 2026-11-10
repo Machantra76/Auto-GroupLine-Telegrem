@@ -146,8 +146,12 @@ async function sendNotification(channel, recipient, message, imagesArray) {
 
         if (channel === 'telegram' || channel === 'broadcast') {
             const rawTargets = recipient || process.env.TELEGRAM_GROUP_CHAT_ID || '';
-            // 🌟 ការពារកុំឱ្យ ID ស្ទួនគ្នា
-            const targetIds = [...new Set(rawTargets.split(',').map(id => id.trim()).filter(id => id.length > 0))];
+            // 🌟 ត្រងយកតែ Telegram ID (ជាលេខ ឬមានសញ្ញាដកនៅខាងមុខ) និងការពារកុំឱ្យ ID ស្ទួនគ្នា
+            const targetIds = [...new Set(
+                rawTargets.split(',')
+                    .map(id => id.trim())
+                    .filter(id => /^-?\d+$/.test(id))
+            )];
 
             if (telegramBot && targetIds.length > 0) {
                 for (const targetId of targetIds) {
@@ -175,51 +179,58 @@ async function sendNotification(channel, recipient, message, imagesArray) {
 
         if (channel === 'line' || channel === 'broadcast') {
             const rawTargets = recipient || process.env.LINE_USER_ID || '';
-            // 🌟 ការពារកុំឱ្យ ID ស្ទួនគ្នា
-            const targetLineIds = [...new Set(rawTargets.split(',').map(id => id.trim()).filter(id => id.length > 0))];
+            // 🌟 ត្រងយកតែ LINE ID (ផ្តើមដោយ U, C, ឬ R និងមាន 32 តួអក្សរខាងក្រោយ) និងការពារកុំឱ្យ ID ស្ទួនគ្នា
+            const targetLineIds = [...new Set(
+                rawTargets.split(',')
+                    .map(id => id.trim())
+                    .filter(id => /^[UCR][0-9a-fA-F]{32}$/.test(id))
+            )];
             
-            if (!lineClient) {
-                throw new Error('LINE Client មិនទាន់ត្រូវបានកំណត់ cấu hình!');
-            }
             if (targetLineIds.length === 0) {
-                throw new Error('រកមិនឃើញ LINE Target ID (User ID ឬ Group ID) សម្រាប់ផ្ញើសារ!');
-            }
+                if (channel === 'line') {
+                    throw new Error('រកមិនឃើញ LINE Target ID (User ID ឬ Group ID) សម្រាប់ផ្ញើសារ!');
+                }
+            } else {
+                if (!lineClient) {
+                    throw new Error('LINE Client មិនទាន់ត្រូវបានកំណត់ cấu hình!');
+                }
 
-            const messages = [];
-            if (message) {
-                messages.push({ type: 'text', text: message });
-            }
+                const messages = [];
+                if (message) {
+                    messages.push({ type: 'text', text: message });
+                }
 
-            if (tempFilePaths.length > 0) {
-                for (const fileObj of tempFilePaths) {
-                    const publicUrl = await uploadImageToHosting(fileObj.buffer);
-                    if (publicUrl) {
-                        if (fileObj.mimetype && fileObj.mimetype.startsWith('video/')) {
-                            messages.push({
-                                type: 'video',
-                                originalContentUrl: publicUrl,
-                                previewImageUrl: publicUrl
-                            });
-                        } else {
-                            messages.push({
-                                type: 'image',
-                                originalContentUrl: publicUrl,
-                                previewImageUrl: publicUrl
-                            });
+                if (tempFilePaths.length > 0) {
+                    for (const fileObj of tempFilePaths) {
+                        const publicUrl = await uploadImageToHosting(fileObj.buffer);
+                        if (publicUrl) {
+                            if (fileObj.mimetype && fileObj.mimetype.startsWith('video/')) {
+                                messages.push({
+                                    type: 'video',
+                                    originalContentUrl: publicUrl,
+                                    previewImageUrl: publicUrl
+                                });
+                            } else {
+                                messages.push({
+                                    type: 'image',
+                                    originalContentUrl: publicUrl,
+                                    previewImageUrl: publicUrl
+                                });
+                            }
                         }
                     }
                 }
-            }
 
-            if (messages.length > 0) {
-                for (const targetId of targetLineIds) {
-                    try {
-                        await lineClient.pushMessage(targetId, messages);
-                        await saveLog('LINE', targetId, message || '[Media]', 'Success');
-                        console.log(`✅ [LINE Success] បានផ្ញើសារនិង Media ទៅកាន់ Target ID: ${targetId}`);
-                    } catch (lineApiErr) {
-                        console.error(`❌ [LINE API Error details for ${targetId}]:`, lineApiErr.originalError?.response?.data || lineApiErr.message);
-                        await saveLog('LINE', targetId, message || '[Media]', `Failed: ${lineApiErr.message}`);
+                if (messages.length > 0) {
+                    for (const targetId of targetLineIds) {
+                        try {
+                            await lineClient.pushMessage(targetId, messages);
+                            await saveLog('LINE', targetId, message || '[Media]', 'Success');
+                            console.log(`✅ [LINE Success] បានផ្ញើសារនិង Media ទៅកាន់ Target ID: ${targetId}`);
+                        } catch (lineApiErr) {
+                            console.error(`❌ [LINE API Error details for ${targetId}]:`, lineApiErr.originalError?.response?.data || lineApiErr.message);
+                            await saveLog('LINE', targetId, message || '[Media]', `Failed: ${lineApiErr.message}`);
+                        }
                     }
                 }
             }
