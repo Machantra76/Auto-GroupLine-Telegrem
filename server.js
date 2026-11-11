@@ -146,7 +146,6 @@ async function sendNotification(channel, recipient, message, imagesArray) {
 
         if (channel === 'telegram' || channel === 'broadcast') {
             const rawTargets = recipient || process.env.TELEGRAM_GROUP_CHAT_ID || '';
-            // 🌟 ត្រងយកតែ Telegram ID (ជាលេខ ឬមានសញ្ញាដកនៅខាងមុខ) និងការពារកុំឱ្យ ID ស្ទួនគ្នា
             const targetIds = [...new Set(
                 rawTargets.split(',')
                     .map(id => id.trim())
@@ -179,11 +178,12 @@ async function sendNotification(channel, recipient, message, imagesArray) {
 
         if (channel === 'line' || channel === 'broadcast') {
             const rawTargets = recipient || process.env.LINE_USER_ID || '';
-            // 🌟 ត្រងយកតែ LINE ID (ផ្តើមដោយ U, C, ឬ R និងមាន 32 តួអក្សរខាងក្រោយ) និងការពារកុំឱ្យ ID ស្ទួនគ្នា
+            
+            // 🌟 កែសម្រួលថ្មី៖ អាចអាន ID ច្រើនខ័ណ្ឌដោយក្បៀស (Comma-separated) យ៉ាងរលូន
             const targetLineIds = [...new Set(
                 rawTargets.split(',')
                     .map(id => id.trim())
-                    .filter(id => /^[UCR][0-9a-fA-F]{32}$/.test(id))
+                    .filter(id => id.length > 10)
             )];
             
             if (targetLineIds.length === 0) {
@@ -192,7 +192,7 @@ async function sendNotification(channel, recipient, message, imagesArray) {
                 }
             } else {
                 if (!lineClient) {
-                    throw new Error('LINE Client មិនទាន់ត្រូវបានកំណត់ cấu hình!');
+                    throw new Error('LINE Client មិនទាន់ត្រូវបានកំណត់ configuration!');
                 }
 
                 const messages = [];
@@ -275,7 +275,6 @@ async function processPendingSchedules() {
                 });
 
                 const formattedDateStr = `${day}-${month}-${year} ម៉ោង ${hours}:${minutes}`;
-                
                 messageToSend = messageToSend.replace(/\d{2}-\d{2}-\d{4}[\sម៉ោង]+\d{2}:\d{2}/g, formattedDateStr);
             }
             
@@ -457,13 +456,12 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.ht
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server កំពុងរត់លើ http://localhost:${PORT}`);
 
-    // 🌟 ដាក់ Self-Ping នៅខាងក្រោមបង្អស់ ដើម្បីឱ្យវាដំណើរការតែ ១ ដងគត់ កុំឱ្យមានបញ្ហាស្ទួនការរត់ Cron
     const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL;
     if (RENDER_EXTERNAL_URL) {
         setInterval(() => {
             axios.get(`${RENDER_EXTERNAL_URL}/api/run-cron`)
                 .then(() => console.log('🔄 [Self-Ping] Server triggered successfully!'))
                 .catch(err => console.error('⚠️ [Self-Ping Error]:', err.message));
-        }, 10 * 60 * 1000); // រៀងរាល់ ១០ នាទីម្ដង
+        }, 10 * 60 * 1000);
     }
 });
